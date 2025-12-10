@@ -1,0 +1,466 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "SQL OData REST API",
+    "description": "REST API для доступа к MS SQL Server с поддержкой OData 4.0 операций",
+    "version": "1.0.0",
+    "contact": {
+      "name": "API Support"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Development server"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Service Root",
+        "description": "Корневой endpoint OData сервиса",
+        "responses": {
+          "200": {
+            "description": "Информация о сервисе",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "@odata.context": {
+                      "type": "string",
+                      "example": "http://localhost:3000/$metadata"
+                    },
+                    "value": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "url": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "summary": "CORS Preflight",
+        "responses": {
+          "204": {
+            "description": "CORS headers"
+          }
+        }
+      }
+    },
+    "/$metadata": {
+      "get": {
+        "summary": "OData Metadata (EDMX)",
+        "description": "Возвращает XML метаданные в формате OData EDMX 4.0",
+        "responses": {
+          "200": {
+            "description": "XML метаданные",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<?xml version=\"1.0\" encoding=\"utf-8\"?><edmx:Edmx Version=\"4.0\">...</edmx:Edmx>"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api": {
+      "get": {
+        "summary": "API Root",
+        "description": "Корневой endpoint API с информацией о доступных ресурсах",
+        "responses": {
+          "200": {
+            "description": "Информация о доступных таблицах",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "@odata.context": { "type": "string" },
+                    "value": { "type": "array" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/$metadata": {
+      "get": {
+        "summary": "OData Metadata (EDMX) - API path",
+        "description": "Альтернативный путь к метаданным через /api",
+        "responses": {
+          "200": {
+            "description": "XML метаданные",
+            "content": {
+              "application/xml": {}
+            }
+          }
+        }
+      }
+    },
+    "/api/{table}": {
+      "get": {
+        "summary": "Получить коллекцию записей",
+        "description": "Возвращает коллекцию записей из указанной таблицы с поддержкой OData query параметров",
+        "parameters": [
+          {
+            "name": "table",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Имя таблицы"
+          },
+          {
+            "name": "$filter",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "OData фильтр (например: age gt 18 and name eq 'John')"
+          },
+          {
+            "name": "$orderby",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Сортировка (например: name asc, age desc)"
+          },
+          {
+            "name": "$top",
+            "in": "query",
+            "schema": { "type": "integer" },
+            "description": "Максимальное количество записей"
+          },
+          {
+            "name": "$skip",
+            "in": "query",
+            "schema": { "type": "integer" },
+            "description": "Количество записей для пропуска"
+          },
+          {
+            "name": "$select",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Список полей через запятую"
+          },
+          {
+            "name": "$count",
+            "in": "query",
+            "schema": { "type": "boolean" },
+            "description": "Включить общее количество записей"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Коллекция записей",
+            "headers": {
+              "OData-Version": {
+                "schema": { "type": "string" },
+                "description": "Версия OData протокола"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "@odata.context": { "type": "string" },
+                    "value": {
+                      "type": "array",
+                      "items": { "type": "object" }
+                    },
+                    "@odata.count": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Недопустимое имя таблицы"
+          },
+          "404": {
+            "description": "Таблица не найдена"
+          }
+        }
+      },
+      "post": {
+        "summary": "Создать новую запись",
+        "parameters": [
+          {
+            "name": "table",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Данные новой записи"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Запись создана",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Созданная запись"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка валидации или недопустимое имя таблицы"
+          },
+          "404": {
+            "description": "Таблица не найдена"
+          }
+        }
+      },
+      "options": {
+        "summary": "CORS Preflight",
+        "responses": {
+          "204": {
+            "description": "CORS headers"
+          }
+        }
+      }
+    },
+    "/api/{table}/{key}": {
+      "get": {
+        "summary": "Получить одну запись по ключу",
+        "parameters": [
+          {
+            "name": "table",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "integer" }
+              ]
+            },
+            "description": "Значение первичного ключа"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Запись найдена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Запись не найдена"
+          }
+        }
+      },
+      "put": {
+        "summary": "Полное обновление записи",
+        "parameters": [
+          {
+            "name": "table",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "integer" }
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Запись обновлена"
+          },
+          "404": {
+            "description": "Запись не найдена"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Частичное обновление записи",
+        "parameters": [
+          {
+            "name": "table",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "integer" }
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Запись обновлена"
+          },
+          "404": {
+            "description": "Запись не найдена"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Удалить запись",
+        "parameters": [
+          {
+            "name": "table",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "integer" }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Запись удалена",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Запись успешно удалена"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Запись не найдена"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {},
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Описание ошибки"
+          },
+          "error": {
+            "type": "string",
+            "description": "Тип ошибки"
+          },
+          "statusCode": {
+            "type": "integer",
+            "description": "HTTP статус код"
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Недопустимый запрос",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Ресурс не найден",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "Внутренняя ошибка сервера",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
