@@ -194,3 +194,4 @@ $filter=age gt 18&$orderby=name asc&$top=10&$skip=0&$count=true
 - Проверьте, что CORS настроен правильно
 - Попробуйте использовать `http://localhost:3000/$metadata` напрямую в браузере
 
+

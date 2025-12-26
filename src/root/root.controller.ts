@@ -1,7 +1,9 @@
 import { Controller, Get, Req, Res, Logger, Header } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { ODataService } from '../odata/odata.service';
 
+@ApiTags('Metadata')
 @Controller()
 export class RootController {
   private readonly logger = new Logger(RootController.name);
@@ -12,6 +14,8 @@ export class RootController {
    * Корневой endpoint для OData сервиса
    * GET /
    */
+  @ApiOperation({ summary: 'Корневой endpoint OData сервиса' })
+  @ApiResponse({ status: 200, description: 'Информация о сервисе' })
   @Get()
   async getRoot(@Req() req: Request) {
     const baseUrl = `${req.protocol}://${req.get('host')}`;
@@ -31,6 +35,8 @@ export class RootController {
    * Обработка $metadata на корневом уровне
    * GET /$metadata
    */
+  @ApiOperation({ summary: 'Получить XML метаданные OData (EDMX)' })
+  @ApiResponse({ status: 200, description: 'XML метаданные в формате EDMX 4.0', content: { 'application/xml': {} } })
   @Get('$metadata')
   @Header('Content-Type', 'application/xml; charset=utf-8')
   async getMetadata(@Req() req: Request, @Res() res: Response) {

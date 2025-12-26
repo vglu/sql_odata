@@ -144,3 +144,4 @@ SQL OData REST API - это RESTful веб-сервис, предоставля�
 - `error` - тип ошибки
 - `statusCode` - HTTP статус код
 
+

@@ -14,10 +14,12 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { ODataService } from './odata.service';
 import { ODataParserService, ODataQueryParams } from './odata-parser.service';
 
+@ApiTags('OData')
 @Controller('api')
 export class ODataController {
   private readonly logger = new Logger(ODataController.name);
@@ -43,6 +45,8 @@ export class ODataController {
    * Корневой endpoint для проверки сервиса
    * GET /api
    */
+  @ApiOperation({ summary: 'Корневой endpoint API' })
+  @ApiResponse({ status: 200, description: 'Информация о доступных ресурсах' })
   @Get()
   async getServiceRoot(@Req() req: Request) {
     const baseUrl = `${req.protocol}://${req.get('host')}${req.baseUrl}`;
@@ -63,6 +67,15 @@ export class ODataController {
    * GET /api/$metadata - для метаданных
    * GET /api/{table} - для получения записей из таблицы
    */
+  @ApiOperation({ summary: 'Получить метаданные или коллекцию записей' })
+  @ApiParam({ name: 'table', description: 'Имя таблицы или $metadata' })
+  @ApiQuery({ name: '$filter', required: false, description: 'OData фильтр' })
+  @ApiQuery({ name: '$orderby', required: false, description: 'Сортировка' })
+  @ApiQuery({ name: '$top', required: false, description: 'Максимальное количество записей' })
+  @ApiQuery({ name: '$skip', required: false, description: 'Пропуск записей' })
+  @ApiQuery({ name: '$select', required: false, description: 'Выбор полей' })
+  @ApiQuery({ name: '$count', required: false, description: 'Включить счетчик' })
+  @ApiResponse({ status: 200, description: 'Коллекция записей или метаданные' })
   @Get(':table')
   async getEntities(
     @Param('table') table: string,
@@ -114,6 +127,11 @@ export class ODataController {
    * Получение одной записи по ключу
    * GET /api/{table}({key})
    */
+  @ApiOperation({ summary: 'Получить одну запись по ключу' })
+  @ApiParam({ name: 'table', description: 'Имя таблицы' })
+  @ApiParam({ name: 'key', description: 'Значение первичного ключа' })
+  @ApiResponse({ status: 200, description: 'Запись найдена' })
+  @ApiResponse({ status: 404, description: 'Запись не найдена' })
   @Get(':table/:key')
   async getEntity(
     @Param('table') table: string,
@@ -128,6 +146,10 @@ export class ODataController {
    * Создание новой записи
    * POST /api/{table}
    */
+  @ApiOperation({ summary: 'Создать новую запись' })
+  @ApiParam({ name: 'table', description: 'Имя таблицы' })
+  @ApiResponse({ status: 201, description: 'Запись создана' })
+  @ApiResponse({ status: 400, description: 'Ошибка валидации' })
   @Post(':table')
   async createEntity(
     @Param('table') table: string,
@@ -140,6 +162,11 @@ export class ODataController {
    * Полное обновление записи
    * PUT /api/{table}({key})
    */
+  @ApiOperation({ summary: 'Полное обновление записи' })
+  @ApiParam({ name: 'table', description: 'Имя таблицы' })
+  @ApiParam({ name: 'key', description: 'Значение первичного ключа' })
+  @ApiResponse({ status: 200, description: 'Запись обновлена' })
+  @ApiResponse({ status: 404, description: 'Запись не найдена' })
   @Put(':table/:key')
   async updateEntity(
     @Param('table') table: string,
@@ -154,6 +181,11 @@ export class ODataController {
    * Частичное обновление записи
    * PATCH /api/{table}({key})
    */
+  @ApiOperation({ summary: 'Частичное обновление записи' })
+  @ApiParam({ name: 'table', description: 'Имя таблицы' })
+  @ApiParam({ name: 'key', description: 'Значение первичного ключа' })
+  @ApiResponse({ status: 200, description: 'Запись обновлена' })
+  @ApiResponse({ status: 404, description: 'Запись не найдена' })
   @Patch(':table/:key')
   async patchEntity(
     @Param('table') table: string,
@@ -168,6 +200,11 @@ export class ODataController {
    * Удаление записи
    * DELETE /api/{table}({key})
    */
+  @ApiOperation({ summary: 'Удалить запись' })
+  @ApiParam({ name: 'table', description: 'Имя таблицы' })
+  @ApiParam({ name: 'key', description: 'Значение первичного ключа' })
+  @ApiResponse({ status: 200, description: 'Запись удалена' })
+  @ApiResponse({ status: 404, description: 'Запись не найдена' })
   @Delete(':table/:key')
   async deleteEntity(
     @Param('table') table: string,

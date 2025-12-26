@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, ForbiddenException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DatabaseService } from '../database/database.service';
 import { ODataParserService, ODataQueryParams } from './odata-parser.service';
 
@@ -9,6 +10,7 @@ export class ODataService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly parserService: ODataParserService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -20,6 +22,11 @@ export class ODataService {
   ): Promise<{ value: any[]; count?: number }> {
     // Валидация имени таблицы
     this.validateTableName(tableName);
+
+    // Проверка whitelist/blacklist
+    if (!this.isTableAllowed(tableName)) {
+      throw new ForbiddenException(`Доступ к таблице ${tableName} запрещен`);
+    }
 
     // Получаем список колонок таблицы
     const columns = await this.getTableColumns(tableName);
@@ -110,6 +117,11 @@ export class ODataService {
   async getEntity(tableName: string, key: string | number): Promise<any> {
     this.validateTableName(tableName);
 
+    // Проверка whitelist/blacklist
+    if (!this.isTableAllowed(tableName)) {
+      throw new ForbiddenException(`Доступ к таблице ${tableName} запрещен`);
+    }
+
     const columns = await this.getTableColumns(tableName);
     if (columns.length === 0) {
       throw new NotFoundException(`Таблица ${tableName} не найдена`);
@@ -134,17 +146,52 @@ export class ODataService {
   }
 
   /**
+   * Валидирует данные перед вставкой/обновлением
+   */
+  private async validateEntityData(tableName: string, data: any, isUpdate: boolean = false): Promise<void> {
+    const columns = await this.getTableColumns(tableName);
+    const columnMap = new Map(columns.map((col) => [col.name.toLowerCase(), col]));
+
+    for (const [key, value] of Object.entries(data)) {
+      const column = columnMap.get(key.toLowerCase());
+      
+      if (!column) {
+        throw new BadRequestException(`Неизвестное поле: ${key}`);
+      }
+
+      // Проверка NULL для NOT NULL полей
+      if (value === null && column.nullable === 'NO' && !isUpdate) {
+        throw new BadRequestException(`Поле ${key} не может быть NULL`);
+      }
+    }
+  }
+
+  /**
    * Создает новую запись (PUT для создания)
    */
   async createEntity(tableName: string, data: any): Promise<any> {
     this.validateTableName(tableName);
+
+    // Проверка whitelist/blacklist
+    if (!this.isTableAllowed(tableName)) {
+      throw new ForbiddenException(`Доступ к таблице ${tableName} запрещен`);
+    }
+
+    // Валидация данных
+    await this.validateEntityData(tableName, data, false);
 
     const columns = await this.getTableColumns(tableName);
     if (columns.length === 0) {
       throw new NotFoundException(`Таблица ${tableName} не найдена`);
     }
 
+    // Фильтруем только существующие колонки и те, что указаны в data
     const validColumns = columns.filter((col) => data.hasOwnProperty(col.name));
+    
+    if (validColumns.length === 0) {
+      throw new BadRequestException('Нет данных для создания записи или все поля неизвестны');
+    }
+
     const columnNames = validColumns.map((col) => `[${col.name}]`);
     const parameterNames = validColumns.map((col) => `@${col.name}`);
 
@@ -154,6 +201,8 @@ export class ODataService {
     validColumns.forEach((col) => {
       parameters[col.name] = data[col.name];
     });
+
+    this.logger.debug(`Creating entity in table "${tableName}": ${JSON.stringify(parameters)}`);
 
     const results = await this.databaseService.executeQuery(sql, parameters);
 
@@ -173,6 +222,14 @@ export class ODataService {
     data: any,
   ): Promise<any> {
     this.validateTableName(tableName);
+
+    // Проверка whitelist/blacklist
+    if (!this.isTableAllowed(tableName)) {
+      throw new ForbiddenException(`Доступ к таблице ${tableName} запрещен`);
+    }
+
+    // Валидация данных
+    await this.validateEntityData(tableName, data, true);
 
     const columns = await this.getTableColumns(tableName);
     if (columns.length === 0) {
@@ -228,6 +285,11 @@ export class ODataService {
   async deleteEntity(tableName: string, key: string | number): Promise<void> {
     this.validateTableName(tableName);
 
+    // Проверка whitelist/blacklist
+    if (!this.isTableAllowed(tableName)) {
+      throw new ForbiddenException(`Доступ к таблице ${tableName} запрещен`);
+    }
+
     const columns = await this.getTableColumns(tableName);
     if (columns.length === 0) {
       throw new NotFoundException(`Таблица ${tableName} не найдена`);
@@ -251,37 +313,28 @@ export class ODataService {
    * Получает XML метаданные в формате OData EDMX
    */
   async getMetadataXml(applicationName: string = 'Default'): Promise<string> {
-    const sql = `
-      SELECT 
-        TABLE_SCHEMA as [schema],
-        TABLE_NAME as name
-      FROM INFORMATION_SCHEMA.TABLES
-      WHERE TABLE_TYPE = 'BASE TABLE'
-        AND TABLE_SCHEMA NOT IN ('sys', 'information_schema', 'guest')
-      ORDER BY TABLE_SCHEMA, TABLE_NAME
-    `;
+    // Получаем все таблицы и колонки одним запросом
+    const tablesColumnsMap = await this.getAllTablesColumns();
 
-    const tables = await this.databaseService.executeQuery<{
-      schema: string;
-      name: string;
-    }>(sql);
-
-    // Получаем колонки для каждой таблицы
-    const entities = await Promise.all(
-      tables.map(async (table) => {
-        const columns = await this.getTableColumns(table.name);
-        return {
-          name: table.name,
-          schema: table.schema,
-          properties: columns.map((col) => ({
-            name: col.name,
-            type: this.mapSqlTypeToODataType(col.type),
-            nullable: col.nullable === 'YES',
-            isKey: columns.indexOf(col) === 0, // Первая колонка - ключ
-          })),
-        };
-      }),
+    // Фильтруем по whitelist/blacklist
+    const allowedTables = Array.from(tablesColumnsMap.keys()).filter((tableName) =>
+      this.isTableAllowed(tableName),
     );
+
+    // Формируем entities
+    const entities = allowedTables.map((tableName) => {
+      const columns = tablesColumnsMap.get(tableName)!;
+      return {
+        name: tableName,
+        schema: columns[0]?.schema || 'dbo',
+        properties: columns.map((col) => ({
+          name: col.name,
+          type: this.mapSqlTypeToODataType(col.type),
+          nullable: col.nullable === 'YES',
+          isKey: col.ordinalPosition === 1, // Первая колонка - ключ
+        })),
+      };
+    });
 
     // Генерируем XML
     let xml = '<?xml version="1.0" encoding="utf-8"?>\n';
@@ -379,20 +432,46 @@ export class ODataService {
   }
 
   /**
-   * Получает список колонок таблицы
+   * Кэш для колонок таблиц
    */
-  private async getTableColumns(tableName: string): Promise<any[]> {
+  private tableColumnsCache: Map<string, any[]> = new Map();
+
+  /**
+   * Получает список колонок таблицы
+   * Использует кэш если доступен, иначе делает запрос к БД
+   */
+  private async getTableColumns(tableName: string, useCache: boolean = true): Promise<any[]> {
+    // Проверяем кэш
+    if (useCache && this.tableColumnsCache.has(tableName)) {
+      return this.tableColumnsCache.get(tableName)!;
+    }
+
     const sql = `
       SELECT 
         COLUMN_NAME as name,
         DATA_TYPE as type,
-        IS_NULLABLE as nullable
+        IS_NULLABLE as nullable,
+        ORDINAL_POSITION as ordinalPosition
       FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_NAME = @tableName
       ORDER BY ORDINAL_POSITION
     `;
 
-    return this.databaseService.executeQuery(sql, { tableName });
+    const columns = await this.databaseService.executeQuery(sql, { tableName });
+    
+    // Кэшируем результат
+    if (useCache) {
+      this.tableColumnsCache.set(tableName, columns);
+    }
+
+    return columns;
+  }
+
+  /**
+   * Очищает кэш колонок таблиц
+   */
+  clearTableColumnsCache(): void {
+    this.tableColumnsCache.clear();
   }
 
   /**

@@ -15,6 +15,12 @@
 
 - **[contracts/api-spec.json](./contracts/api-spec.json)** - OpenAPI 3.0 спецификация всех endpoints
 
+### Документы улучшений
+
+- **[improvements.md](./improvements.md)** - Полный список предложений по улучшению
+- **[TOP-IMPROVEMENTS.md](./TOP-IMPROVEMENTS.md)** - Топ-10 быстрых улучшений с примерами кода
+- **[ROADMAP.md](./ROADMAP.md)** - Долгосрочный план развития проекта
+
 ## Статус реализации
 
 ✅ **Завершено:**
@@ -60,4 +66,5 @@
 1. Обновите соответствующие разделы в spec.md или plan.md
 2. Обновите api-spec.json если изменяются endpoints
 3. Обновите quickstart.md если изменяются примеры использования
+
 

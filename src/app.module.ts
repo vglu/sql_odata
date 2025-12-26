@@ -15,6 +15,7 @@ import { LoggingMiddleware } from './common/logging.middleware';
     ODataModule,
     RootModule,
   ],
+  providers: [LoggingMiddleware],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
