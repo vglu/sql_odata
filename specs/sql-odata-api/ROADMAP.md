@@ -177,3 +177,4 @@
   - Механизм сбора feedback от пользователей
   - GitHub issues integration
 
+
